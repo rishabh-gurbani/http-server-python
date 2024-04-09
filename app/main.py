@@ -60,7 +60,7 @@ def main():
 def handle_echo(path:str) -> str:
     parts = path.split("/")
     print(parts)
-    return parts[2]
+    return parts[2:].join("")
 
 
 
