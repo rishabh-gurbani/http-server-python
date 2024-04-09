@@ -1,5 +1,7 @@
 # Uncomment this to pass the first stage
+import os
 import socket
+import sys
 import threading
 
 class Http_Request:
@@ -59,27 +61,50 @@ class Http_Response:
 #             path_methods = self.route_lookup[path]
 #         path_methods[method] = handler
 
-# def slash_handler(req, client_socket):
-#     response = Http_Response()
-#     client_socket.sendmsg([response.response_string.encode()])
+def slash_handler(req, client_socket):
+    response = Http_Response()
+    client_socket.sendmsg([response.response_string.encode()])
 
-# def echo_handler(req, client_socket):
-#     request_path = req.header["path"]
-#     echo_string = handle_echo(request_path)
-#     response_headers = dict()
-#     response_headers["Content-Type"] = "text/plain"
-#     response_headers["Content-Length"] = len(echo_string)
-#     response =  Http_Response(headers=response_headers, body=echo_string)
-#     print(response.response_string)
-#     client_socket.sendmsg([(response.response_string).encode()])
+def echo_handler(req, client_socket):
+    request_path = req.header["path"]
+    echo_string = path_parts(request_path)
+    response_headers = dict()
+    response_headers["Content-Type"] = "text/plain"
+    response_headers["Content-Length"] = len(echo_string)
+    response =  Http_Response(headers=response_headers, body=echo_string)
+    print(response.response_string)
+    client_socket.sendmsg([(response.response_string).encode()])
+    # client_socket.sendmsg(
+    #     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(echo_string)}\r\n\r\n{echo_string}").encode()])
 
-# def user_agent_handler(req, client_socket):
-#     user_agent = req.header["User-Agent"]
-#     response_headers = dict()
-#     response_headers["Content-Type"] = "text/plain"
-#     response_headers["Content-Length"] = len(user_agent)
-#     response = Http_Response(headers=response_headers, body=user_agent)
-#     client_socket.sendmsg([(response.response_string).encode()])
+def user_agent_handler(req, client_socket):
+    user_agent = req.header["User-Agent"]
+    response_headers = dict()
+    response_headers["Content-Type"] = "text/plain"
+    response_headers["Content-Length"] = len(user_agent)
+    response = Http_Response(headers=response_headers, body=user_agent)
+    client_socket.sendmsg([(response.response_string).encode()])
+    # client_socket.sendmsg(
+    #     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}").encode()])
+
+def file_handler(req, client_socket):
+    request_path = req.header["path"]
+    file_name = path_parts(request_path)
+    directory = sys.argv[2]
+    all_entries = os.listdir(directory)
+    print("All entries: " ,all_entries)
+    file_path = os.path.join(directory, file_name)
+    print(file_path)
+    if os.path.isfile(file_path):
+        with open(file_path, 'r') as file:
+            contents = file.read()
+        responseHeaders = dict()
+        responseHeaders["Content-Type"]="application/octet-stream"
+        responseHeaders["Content-Length"]=len(contents)
+        response = Http_Response(headers=responseHeaders, body=contents)
+    else:
+        response=Http_Response(status="404", message="Not Found")
+    client_socket.sendmsg([(response.response_string).encode()])
 
 def main():
     print("Server started!")
@@ -99,7 +124,7 @@ def main():
     # router = route_handler.router
     
     
-def handle_echo(path:str) -> str:
+def path_parts(path:str) -> str:
     parts = path.split("/", 2)
     return parts[2]
 
@@ -113,28 +138,14 @@ def handleConnection(client_socket):
             print("Request Body: ", request_obj.body)
             request_path = request_obj.header["path"]
             print("Request path: ", request_path)
-            if request_path=="/":  
-                response = Http_Response()
-                client_socket.sendmsg([response.response_string.encode()])
+            if request_path=="/": 
+                slash_handler(req=request_obj, client_socket=client_socket)
             elif request_obj.header['method']=="GET" and request_path.startswith("/echo"):
-                echo_string = handle_echo(request_path)
-                response_headers = dict()
-                response_headers["Content-Type"] = "text/plain"
-                response_headers["Content-Length"] = len(echo_string)
-                response =  Http_Response(headers=response_headers, body=echo_string)
-                print(response.response_string)
-                # client_socket.sendmsg(
-                #     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(echo_string)}\r\n\r\n{echo_string}").encode()])
-                client_socket.sendmsg([(response.response_string).encode()])
+                echo_handler(req=request_obj, client_socket=client_socket)
             elif request_obj.header['method']=="GET" and request_path=="/user-agent":
-                user_agent = request_obj.header["User-Agent"]
-                response_headers = dict()
-                response_headers["Content-Type"] = "text/plain"
-                response_headers["Content-Length"] = len(user_agent)
-                response = Http_Response(headers=response_headers, body=user_agent)
-                # client_socket.sendmsg(
-                #     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}").encode()])
-                client_socket.sendmsg([(response.response_string).encode()])
+                user_agent_handler(req=request_obj, client_socket=client_socket)
+            elif request_obj.header['method']=="GET" and request_path.startswith("/file"):
+                file_handler(req=request_obj, client_socket=client_socket)
             else:
                 response = Http_Response(status="404", message="Not Found")
                 client_socket.sendmsg([(response.response_string).encode()])
