@@ -54,6 +54,10 @@ def main():
                 echo_string = handle_echo(request_path)
                 client_socket.sendmsg(
                     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(echo_string)}\r\n\r\n{echo_string}").encode()])
+            elif request_obj.header['method']=="GET" and request_path=="/user-agent":
+                user_agent = request_obj.header["User-Agent"]
+                client_socket.sendmsg(
+                    [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}").encode()])
             else:
                 client_socket.sendmsg([("HTTP/1.1 404 Not Found\r\n\r\n").encode()])
 
