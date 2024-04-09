@@ -58,9 +58,9 @@ def main():
                 client_socket.sendmsg([("HTTP/1.1 404 Not Found\r\n\r\n").encode()])
 
 def handle_echo(path:str) -> str:
-    parts = path.split("/")
-    print(parts)
-    return parts[2:].join("")
+    parts = path.split("/", 2)
+    print("Parts: ", parts)
+    return parts[2]
 
 
 
