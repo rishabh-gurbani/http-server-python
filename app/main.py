@@ -1,5 +1,6 @@
 # Uncomment this to pass the first stage
 import socket
+import threading
 
 class Http_Request:
 
@@ -30,42 +31,114 @@ class Http_Request:
         self.header = Http_Request.parse_headers(self.header_lines)
         self.body = self.body_lines
 
+class Http_Response:
 
+    def __init__(self, version:str="1.1", status:str="200", message:str="OK", headers:dict=dict(), body:str=""):
+        status_line = f'HTTP/{version} {status} {message}\r\n'
+        headersList = []
+        for k, v in headers.items():
+            headersList.append(f"{k}: {v}")
+        self.response_string = status_line + ("\r\n".join(headersList) + "\r\n\r\n" if headersList else "\r\n") + (body + "\r\n" if body else "")
+
+# class RouteHandler:
+#     def __init__(self):
+#         self.route_lookup = dict()
+
+#     def router(self, path:str, method:str, req, client_socket):
+#         try:
+#             self.route_lookup[path][method](req, client_socket)
+#         except:
+#             print(f"Exception while handling {method} on {path}!")
+#             response = Http_Response(status="404", message="Not Found")
+#             client_socket.sendmsg([(response.response_string).encode()])
+
+#     def addRoute(self, path:str, handler:function, method:str="GET"):
+#         path_methods = self.route_lookup[path]
+#         if not path_methods:
+#             self.route_lookup[path] = dict
+#             path_methods = self.route_lookup[path]
+#         path_methods[method] = handler
+
+# def slash_handler(req, client_socket):
+#     response = Http_Response()
+#     client_socket.sendmsg([response.response_string.encode()])
+
+# def echo_handler(req, client_socket):
+#     request_path = req.header["path"]
+#     echo_string = handle_echo(request_path)
+#     response_headers = dict()
+#     response_headers["Content-Type"] = "text/plain"
+#     response_headers["Content-Length"] = len(echo_string)
+#     response =  Http_Response(headers=response_headers, body=echo_string)
+#     print(response.response_string)
+#     client_socket.sendmsg([(response.response_string).encode()])
+
+# def user_agent_handler(req, client_socket):
+#     user_agent = req.header["User-Agent"]
+#     response_headers = dict()
+#     response_headers["Content-Type"] = "text/plain"
+#     response_headers["Content-Length"] = len(user_agent)
+#     response = Http_Response(headers=response_headers, body=user_agent)
+#     client_socket.sendmsg([(response.response_string).encode()])
 
 def main():
     print("Server started!")
 
     server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
-    client_socket, client_address = server_socket.accept() # wait for client
+    while True:
+        client_socket, client_address = server_socket.accept() # wait for client
+        print(client_socket, client_address)
+        thread = threading.Thread(target=handleConnection, args=(client_socket, ))
+        thread.start()
+        # handleConnection(client_socket)
 
-    print(client_socket, client_address)
+    # route_handler = RouteHandler()
+    # route_handler.addRoute("/", slash_handler)
+    # route_handler.addRoute("/echo", echo_handler)
+    # route_handler.addRoute("/user-agent", user_agent_handler)
+    # router = route_handler.router
+    
+    
+def handle_echo(path:str) -> str:
+    parts = path.split("/", 2)
+    return parts[2]
+
+def handleConnection(client_socket):
     with client_socket:
         data, _ , _ , _  = client_socket.recvmsg(1024)
         if data:
             data = data.decode()
             request_obj = Http_Request(data)
-            print("Headers: ", request_obj.header)
-            print("Body: ", request_obj.body)
+            print("Request Headers: ", request_obj.header)
+            print("Request Body: ", request_obj.body)
             request_path = request_obj.header["path"]
             print("Request path: ", request_path)
-            if request_path=="/":
-                client_socket.sendmsg([("HTTP/1.1 200 OK\r\n\r\n").encode()])
+            if request_path=="/":  
+                response = Http_Response()
+                client_socket.sendmsg([response.response_string.encode()])
             elif request_obj.header['method']=="GET" and request_path.startswith("/echo"):
                 echo_string = handle_echo(request_path)
-                client_socket.sendmsg(
-                    [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(echo_string)}\r\n\r\n{echo_string}").encode()])
+                response_headers = dict()
+                response_headers["Content-Type"] = "text/plain"
+                response_headers["Content-Length"] = len(echo_string)
+                response =  Http_Response(headers=response_headers, body=echo_string)
+                print(response.response_string)
+                # client_socket.sendmsg(
+                #     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(echo_string)}\r\n\r\n{echo_string}").encode()])
+                client_socket.sendmsg([(response.response_string).encode()])
             elif request_obj.header['method']=="GET" and request_path=="/user-agent":
                 user_agent = request_obj.header["User-Agent"]
-                client_socket.sendmsg(
-                    [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}").encode()])
+                response_headers = dict()
+                response_headers["Content-Type"] = "text/plain"
+                response_headers["Content-Length"] = len(user_agent)
+                response = Http_Response(headers=response_headers, body=user_agent)
+                # client_socket.sendmsg(
+                #     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}").encode()])
+                client_socket.sendmsg([(response.response_string).encode()])
             else:
-                client_socket.sendmsg([("HTTP/1.1 404 Not Found\r\n\r\n").encode()])
-
-def handle_echo(path:str) -> str:
-    parts = path.split("/", 2)
-    print("Parts: ", parts)
-    return parts[2]
-
+                response = Http_Response(status="404", message="Not Found")
+                client_socket.sendmsg([(response.response_string).encode()])
+                # client_socket.sendmsg([("HTTP/1.1 404 Not Found\r\n\r\n").encode()])
 
 
 if __name__ == "__main__":
