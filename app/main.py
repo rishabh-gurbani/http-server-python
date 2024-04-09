@@ -1,4 +1,3 @@
-# Uncomment this to pass the first stage
 import os
 import socket
 import sys
@@ -87,14 +86,11 @@ def user_agent_handler(req, client_socket):
     # client_socket.sendmsg(
     #     [(f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}").encode()])
 
-def file_handler(req, client_socket):
+def file_read_handler(req, client_socket):
     request_path = req.header["path"]
     file_name = path_parts(request_path)
     directory = sys.argv[2]
-    all_entries = os.listdir(directory)
-    print("All entries: " ,all_entries)
     file_path = os.path.join(directory, file_name)
-    print(file_path)
     if os.path.isfile(file_path):
         with open(file_path, 'r') as file:
             contents = file.read()
@@ -104,6 +100,18 @@ def file_handler(req, client_socket):
         response = Http_Response(headers=responseHeaders, body=contents)
     else:
         response=Http_Response(status="404", message="Not Found")
+    client_socket.sendmsg([(response.response_string).encode()])
+
+def file_write_handler(req, client_socket):
+    request_path = req.header["path"]
+    file_name = path_parts(request_path)
+    directory = sys.argv[2]
+    file_path = os.path.join(directory, file_name)
+    contents = req.body[0]
+    print("Contents: ", contents)
+    with open(file_path, 'w') as file:
+        file.write(contents)
+    response = Http_Response(status="201", message="Created")
     client_socket.sendmsg([(response.response_string).encode()])
 
 def main():
@@ -145,7 +153,9 @@ def handleConnection(client_socket):
             elif request_obj.header['method']=="GET" and request_path=="/user-agent":
                 user_agent_handler(req=request_obj, client_socket=client_socket)
             elif request_obj.header['method']=="GET" and request_path.startswith("/file"):
-                file_handler(req=request_obj, client_socket=client_socket)
+                file_read_handler(req=request_obj, client_socket=client_socket)
+            elif request_obj.header['method']=="POST" and request_path.startswith("/file"):
+                file_write_handler(req=request_obj, client_socket=client_socket)
             else:
                 response = Http_Response(status="404", message="Not Found")
                 client_socket.sendmsg([(response.response_string).encode()])
